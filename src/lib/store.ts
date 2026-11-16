@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { addDays, daysBetween, startOfDay, toISODate } from './date';
+import { daysBetween, startOfDay } from './date';
 
 export interface Task {
   id: string;
@@ -13,39 +13,49 @@ export interface Task {
 }
 
 export const MEMORY_DAYS = 30;
-const KEY = 'stt.tasks.v1';
+const KEY = 'stt.tasks.v2';
+/** v1 shipped with demo tasks; on first load we import it without those demo rows. */
+const LEGACY_KEY = 'stt.tasks.v1';
+const LEGACY_DEMO_TITLES = new Set([
+  'ส่งการบ้านฟิสิกส์', 'เตรียมสไลด์พรีเซนต์กลุ่ม', 'ส่งรายงานโครงงานวิทยาศาสตร์ให้คุณครู',
+  'อ่านหนังสือสอบภาษาอังกฤษ', 'ซื้อของขวัญวันเกิดเพื่อน', 'จัดโต๊ะทำงานให้เรียบร้อย', 'ส่งแบบฝึกหัดคณิตศาสตร์',
+]);
 
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 /** Days until a done task is purged (counted on calendar days from the day it was done). */
 export function memoryDaysLeft(doneAt: number, now = new Date()): number {
   return MEMORY_DAYS - daysBetween(startOfDay(new Date(doneAt)), startOfDay(now));
 }
 
-export function sampleTasks(now = new Date()): Task[] {
-  const t = startOfDay(now);
-  const d = (n: number) => toISODate(addDays(t, n));
-  const c = Date.now();
-  return [
-    { id: uid(), title: 'ส่งการบ้านฟิสิกส์', detail: '', due: d(-2), createdAt: c, doneAt: null },
-    { id: uid(), title: 'เตรียมสไลด์พรีเซนต์กลุ่ม', detail: '', due: d(0), createdAt: c, doneAt: null },
-    { id: uid(), title: 'ส่งรายงานโครงงานวิทยาศาสตร์ให้คุณครู', detail: 'สรุปบทที่ 3 และ 4 ด้วย', due: d(2), createdAt: c, doneAt: null },
-    { id: uid(), title: 'อ่านหนังสือสอบภาษาอังกฤษ', detail: '', due: d(4), createdAt: c, doneAt: null },
-    { id: uid(), title: 'ซื้อของขวัญวันเกิดเพื่อน', detail: '', due: d(7), createdAt: c, doneAt: null },
-    { id: uid(), title: 'จัดโต๊ะทำงานให้เรียบร้อย', detail: '', due: null, createdAt: c, doneAt: null },
-    { id: uid(), title: 'ส่งแบบฝึกหัดคณิตศาสตร์', detail: '', due: d(-6), createdAt: c, doneAt: addDays(t, -5).getTime() + 15 * 3600_000 },
-  ];
+function isTask(x: unknown): x is Task {
+  const t = x as Task;
+  return !!t && typeof t.id === 'string' && typeof t.title === 'string' && (t.due === null || typeof t.due === 'string');
+}
+
+function parseList(raw: string | null): Task[] | null {
+  if (raw === null) return null;
+  try {
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter(isTask).map((t) => ({ ...t, detail: t.detail ?? '', doneAt: t.doneAt ?? null })) : [];
+  } catch {
+    return [];
+  }
 }
 
 function load(): Task[] {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw === null) return sampleTasks();
-    const list = JSON.parse(raw) as Task[];
-    return Array.isArray(list) ? list : sampleTasks();
+    const current = parseList(localStorage.getItem(KEY));
+    if (current) return current;
+    const legacy = parseList(localStorage.getItem(LEGACY_KEY));
+    if (legacy) {
+      localStorage.removeItem(LEGACY_KEY);
+      return legacy.filter((t) => !LEGACY_DEMO_TITLES.has(t.title));
+    }
   } catch {
-    return sampleTasks();
+    /* storage blocked: start empty, the UI warns that saving failed */
   }
+  return [];
 }
 
 function purge(list: Task[]): Task[] {
@@ -65,6 +75,13 @@ export function useTasks() {
     }
   }, [tasks]);
 
+  // Keep several open tabs in sync.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === KEY) setTasks(purge(parseList(e.newValue) ?? [])); };
+    addEventListener('storage', onStorage);
+    return () => removeEventListener('storage', onStorage);
+  }, []);
+
   const add = useCallback((t: Pick<Task, 'title' | 'detail' | 'due'>) => {
     const task: Task = { ...t, id: uid(), createdAt: Date.now(), doneAt: null };
     setTasks((l) => [...l, task]);
@@ -76,8 +93,7 @@ export function useTasks() {
   const complete = useCallback((id: string) => update(id, { doneAt: Date.now() }), [update]);
   const restore = useCallback((id: string) => update(id, { doneAt: null }), [update]);
   const remove = useCallback((id: string) => setTasks((l) => l.filter((t) => t.id !== id)), []);
-  const resetSample = useCallback(() => setTasks(sampleTasks()), []);
   const clearAll = useCallback(() => setTasks([]), []);
 
-  return { tasks, storageOk, add, update, complete, restore, remove, resetSample, clearAll };
+  return { tasks, storageOk, add, update, complete, restore, remove, clearAll };
 }

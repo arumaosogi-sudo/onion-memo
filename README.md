@@ -1,6 +1,6 @@
 # Smart Task Tracker & Calendar
 
-เว็บจริง: https://smart-task-tracker-blue.vercel.app (deploy อัตโนมัติทุกครั้งที่ push เข้า main)
+เว็บจริง: https://arumaosogi-sudo.github.io/tacker-app/ (GitHub Pages) และ https://smart-task-tracker-blue.vercel.app (Vercel) — ทั้งคู่ deploy อัตโนมัติทุกครั้งที่ push เข้า main
 
 เว็บแอปจดและติดตามงานภาษาไทย ตามดีไซน์ใน Figma (Itim + Prompt, โทนพาสเทลลาเวนเดอร์, รองรับโหมดมืดอัตโนมัติ)
 
@@ -21,13 +21,13 @@ npm run build    # ได้ไฟล์ static ใน dist/ (deploy ที่ C
 - สถานะ 6 ระดับ (ข้อความ + ไอคอน + สี) คำนวณจากวันที่ของเครื่อง ตัดที่เที่ยงคืนเวลาท้องถิ่น
 - ปฏิทินสัปดาห์/เดือน จุดต่างรูปทรงตามระดับ แตะวันเพื่อกรอง, AlertStrip แตะเพื่อกรองงานด่วน
 - เสร็จงาน → Toast "เลิกทำ" 9 วินาที → Memory Box เก็บ 30 วันแล้วลบอัตโนมัติ, กู้คืนได้
-- ข้อมูลเก็บใน localStorage ของเบราว์เซอร์ (ครั้งแรกมีข้อมูลตัวอย่าง)
+- ข้อมูลเก็บใน localStorage ของเบราว์เซอร์เครื่องนั้นๆ (เริ่มต้นว่าง ไม่มีข้อมูลตัวอย่าง)
 
 ## โครงสร้าง
 
 - `src/lib/date.ts` วันที่ไทย/พ.ศ. และระดับความเร่งด่วน
 - `src/lib/parse.ts` ตัวแยกข้อความภาษาไทย (+ `parse.test.ts`)
-- `src/lib/store.ts` เก็บงานใน localStorage, ข้อมูลตัวอย่าง, ล้าง Memory Box อายุเกิน 30 วัน
+- `src/lib/store.ts` เก็บงานใน localStorage (ซิงก์ข้ามแท็บ), ล้าง Memory Box อายุเกิน 30 วัน
 - `src/components/` NavBar อยู่ใน `App.tsx`, Calendar, TaskForm (Review/Edit), Home (AlertStrip, Composer, TaskCard), Extras (Toast, MemoryBox, ConfirmModal, EmptyState)
 
 ## ต่อยอด
