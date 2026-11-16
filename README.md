@@ -1,5 +1,7 @@
 # Smart Task Tracker & Calendar
 
+เว็บจริง: https://smart-task-tracker-blue.vercel.app (deploy อัตโนมัติทุกครั้งที่ push เข้า main)
+
 เว็บแอปจดและติดตามงานภาษาไทย ตามดีไซน์ใน Figma (Itim + Prompt, โทนพาสเทลลาเวนเดอร์, รองรับโหมดมืดอัตโนมัติ)
 
 ## รัน
