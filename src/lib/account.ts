@@ -5,7 +5,11 @@ import type { CloudUser } from './cloud';
 export type CloudModule = typeof import('./cloud');
 export const cloudEnabled = firebaseConfig !== null;
 let modPromise: Promise<CloudModule> | null = null;
-export const loadCloud = () => (modPromise ??= import('./cloud'));
+let loaded: CloudModule | null = null;
+export const loadCloud = () => (modPromise ??= import('./cloud').then((m) => (loaded = m)));
+/** Load Firebase ahead of the tap so the Google popup opens inside the user gesture
+ *  (Safari/iPad blocks popups opened after an await). */
+export const prefetchCloud = () => { if (cloudEnabled) void loadCloud(); };
 
 const HINT = 'stt.signedIn'; // lets us load Firebase eagerly only for people who use an account
 
@@ -25,10 +29,16 @@ export function useAccount() {
   }, []);
 
   const signIn = useCallback(async () => {
-    const m = await loadCloud();
-    setCloud(m);
-    await m.signInGoogle();
+    // Use the already-loaded module synchronously so the popup is opened in the same tap.
+    const m = loaded ?? (await loadCloud());
     localStorage.setItem(HINT, '1');
+    try {
+      await m.signInGoogle();
+    } catch (e) {
+      localStorage.removeItem(HINT);
+      throw e;
+    }
+    setCloud(m);
     return new Promise<void>((resolve) => {
       const off = m.watchAuth((u) => { if (u) { setUser(u); off(); resolve(); } });
     });

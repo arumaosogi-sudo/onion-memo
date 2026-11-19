@@ -1,4 +1,5 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { prefetchCloud } from '../lib/account';
 import type { CloudUser } from '../lib/cloud';
 import { getGeminiKey } from '../lib/gemini';
 import { Mascot } from './Bits';
@@ -14,6 +15,7 @@ export function AccountPanel({ enabled, user, taskCount, onSignIn, onSignOut, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const hasKey = !!getGeminiKey();
+  useEffect(() => { if (enabled && !user) prefetchCloud(); }, [enabled, user]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError('');
@@ -21,7 +23,9 @@ export function AccountPanel({ enabled, user, taskCount, onSignIn, onSignOut, on
       const code = (e as { code?: string }).code ?? '';
       setError(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request'
         ? 'ยกเลิกการเข้าสู่ระบบ'
-        : code === 'auth/unauthorized-domain' ? 'โดเมนนี้ยังไม่ได้รับอนุญาตใน Firebase' : 'เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง');
+        : code === 'auth/popup-blocked' ? 'เบราว์เซอร์บล็อกหน้าต่างเข้าสู่ระบบ แตะปุ่มอีกครั้ง หรืออนุญาตป๊อปอัปสำหรับเว็บนี้'
+        : code === 'auth/network-request-failed' ? 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ ลองใหม่อีกครั้ง'
+        : code === 'auth/unauthorized-domain' ? 'โดเมนนี้ยังไม่ได้รับอนุญาตใน Firebase' : `เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง${code ? ` (${code})` : ''}`);
     } finally { setBusy(false); }
   };
 

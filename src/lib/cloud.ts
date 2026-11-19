@@ -3,7 +3,7 @@
 import { initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider, browserLocalPersistence, getAuth, onAuthStateChanged, setPersistence,
-  signInWithPopup, signInWithRedirect, signOut, type User,
+  signInWithPopup, signOut, type User,
 } from 'firebase/auth';
 import {
   clearIndexedDbPersistence, collection, deleteDoc, doc, getDoc, initializeFirestore, terminate, onSnapshot, persistentLocalCache,
@@ -28,16 +28,9 @@ export function watchAuth(cb: (u: CloudUser | null) => void): () => void {
 export async function signInGoogle(): Promise<void> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  try {
-    await signInWithPopup(auth, provider);
-  } catch (e) {
-    const code = (e as { code?: string }).code ?? '';
-    if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-    throw e;
-  }
+  // Popup only: redirect sign-in breaks on Safari/iOS for sites not hosted on the
+  // Firebase auth domain (cross-site storage is blocked), and GitHub Pages is one of them.
+  await signInWithPopup(auth, provider);
 }
 
 /** Sign out and wipe the offline cache so the next person on this device can't read the data. */
