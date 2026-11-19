@@ -241,3 +241,6 @@ button { cursor: pointer; background: none; border: 0; }
 .by-ai { color: var(--brand-primary); }
 .spin { animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+a { color: var(--brand-primary); text-underline-offset: 3px; }
+@media (max-width: 400px) { .nv { min-width: 0; flex: 1; padding: 4px 6px; } }

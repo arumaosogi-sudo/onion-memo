@@ -1,26 +1,21 @@
-// Vercel Serverless Function: POST /api/parse
-// Turns one free-form Thai sentence into { title, detail, due, matched, alternative } using Gemini.
-// The Gemini key lives only in the Vercel env var GEMINI_API_KEY — never in the browser bundle.
+// Gemini call made directly from the browser. The API key is entered by the user in
+// "ตั้งค่า AI" and stored only in this browser's localStorage — it is never in the code,
+// the repo, or the GitHub Pages bundle.
 
-const ALLOWED_ORIGINS = [
-  'https://arumaosogi-sudo.github.io',
-  'https://smart-task-tracker-blue.vercel.app',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-];
-const MAX_CHARS = 600;
-// Fast, current models first (checked against ListModels on 2026-11-19). Override with GEMINI_MODEL.
-const MODELS = [process.env.GEMINI_MODEL, 'gemini-3.5-flash-lite', 'gemini-3.5-flash'].filter(Boolean) as string[];
 const WEEKDAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+// Fast, current models first (checked against ListModels on 2026-11-19).
+export const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+const KEY_STORE = 'stt.geminiKey';
+const MAX_CHARS = 600;
 
-// Best-effort per-instance rate limit (20 requests / minute / IP).
-const hits = new Map<string, number[]>();
-function limited(ip: string): boolean {
-  const now = Date.now();
-  const list = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
-  list.push(now);
-  hits.set(ip, list);
-  return list.length > 20;
+export function getGeminiKey(): string {
+  try { return localStorage.getItem(KEY_STORE) ?? ''; } catch { return ''; }
+}
+export function setGeminiKey(key: string): void {
+  try {
+    if (key) localStorage.setItem(KEY_STORE, key.trim());
+    else localStorage.removeItem(KEY_STORE);
+  } catch { /* storage blocked */ }
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -29,10 +24,6 @@ function validISO(s: unknown): string | null {
   const [y, m, d] = s.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? s : null;
-}
-function serverToday(): string {
-  // Asia/Bangkok calendar date
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
 }
 
 function systemPrompt(today: string): string {
@@ -77,11 +68,16 @@ const RESPONSE_SCHEMA = {
   required: ['title', 'detail', 'due', 'matched', 'alternative'],
 };
 
-async function callGemini(key: string, model: string, text: string, today: string, lowThinking = true) {
+export interface GeminiParse { title: string; detail: string; due: string | null; matched: string | null; alternative: string | null; model: string }
+export class GeminiError extends Error {
+  constructor(public code: 'no_key' | 'bad_key' | 'rate_limited' | 'failed') { super(code); }
+}
+
+async function call(key: string, model: string, text: string, today: string, lowThinking: boolean): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20_000);
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
@@ -94,64 +90,53 @@ async function callGemini(key: string, model: string, text: string, today: strin
         },
       }),
     });
-    return r;
   } finally {
     clearTimeout(timer);
   }
 }
 
-export default async function handler(req: any, res: any) {
-  const origin = String(req.headers.origin ?? '');
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  }
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
-  if (origin && !ALLOWED_ORIGINS.includes(origin)) return res.status(403).json({ error: 'origin_not_allowed' });
-
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return res.status(503).json({ error: 'ai_not_configured' });
-
-  const ip = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || 'unknown';
-  if (limited(ip)) return res.status(429).json({ error: 'rate_limited' });
-
-  const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {};
-  const text = String(body.text ?? '').trim().slice(0, MAX_CHARS);
-  if (!text) return res.status(400).json({ error: 'empty_text' });
-  // Use the device's local date when it is plausible (±2 days of server date); else server date.
-  const sToday = serverToday();
-  const cToday = validISO(body.today);
-  const diff = cToday ? Math.abs(Date.parse(cToday) - Date.parse(sToday)) / 86_400_000 : 99;
-  const today = cToday && diff <= 2 ? cToday : sToday;
-
-  let lastStatus = 0;
+export async function geminiParse(input: string, today: string, key = getGeminiKey()): Promise<GeminiParse> {
+  if (!key) throw new GeminiError('no_key');
+  const text = input.trim().slice(0, MAX_CHARS);
+  let last: GeminiError['code'] = 'failed';
   for (const model of MODELS) {
     try {
-      let r = await callGemini(key, model, text, today);
-      if (r.status === 400) r = await callGemini(key, model, text, today, false); // model without thinkingLevel
-      lastStatus = r.status;
-      if (r.status === 404 || r.status === 429 || r.status >= 500) continue; // try next model
-      if (!r.ok) break;
-      const data: any = await r.json();
-      const raw = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '';
+      let r = await call(key, model, text, today, true);
+      if (r.status === 400) {
+        const body = await r.clone().text();
+        if (/API[_ ]?key|API_KEY_INVALID/i.test(body)) throw new GeminiError('bad_key');
+        r = await call(key, model, text, today, false); // model without thinkingLevel
+      }
+      if (r.status === 401 || r.status === 403) throw new GeminiError('bad_key');
+      if (r.status === 429) { last = 'rate_limited'; continue; }
+      if (!r.ok) continue; // 404 model gone / 5xx -> next model
+      const data = await r.json();
+      const raw: string = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? '';
       const out = JSON.parse(raw);
       const title = String(out.title ?? '').trim().slice(0, 120);
-      if (!title) break;
-      return res.status(200).json({
+      if (!title) continue;
+      return {
         title,
         detail: String(out.detail ?? '').trim().slice(0, 300),
         due: validISO(out.due),
         matched: out.matched ? String(out.matched).slice(0, 60) : null,
         alternative: validISO(out.alternative),
         model,
-      });
-    } catch {
-      lastStatus = 504; // timeout or bad JSON -> try next model
-      continue;
+      };
+    } catch (e) {
+      if (e instanceof GeminiError) throw e;
+      // timeout / bad JSON -> try next model
     }
   }
-  return res.status(502).json({ error: 'ai_failed', upstream: lastStatus });
+  throw new GeminiError(last);
+}
+
+/** Cheap key check used by the settings dialog. */
+export async function testGeminiKey(key: string): Promise<boolean> {
+  try {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', { headers: { 'x-goog-api-key': key.trim() } });
+    return r.ok;
+  } catch {
+    return false;
+  }
 }

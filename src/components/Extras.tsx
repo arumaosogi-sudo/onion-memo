@@ -5,12 +5,12 @@ import { Mascot } from './Bits';
 import { IconTrash, IconWarn, IconX } from './Icons';
 import { Modal } from './Modal';
 
-export interface ToastData { id: number; kind: 'success' | 'done' | 'error'; text: string; onUndo?: () => void }
+export interface ToastData { id: number; kind: 'success' | 'done' | 'error'; text: string; action?: { label: string; run: () => void } }
 
 export function Toast({ toast, onClose }: { toast: ToastData | null; onClose: () => void }) {
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(onClose, toast.onUndo ? 9000 : 4000);
+    const t = setTimeout(onClose, toast.action ? 9000 : 4000);
     return () => clearTimeout(t);
   }, [toast, onClose]);
   return (
@@ -18,7 +18,7 @@ export function Toast({ toast, onClose }: { toast: ToastData | null; onClose: ()
       {toast && (
         <div key={toast.id} className={`toast t-${toast.kind}`}>
           <span className="grow">{toast.kind === 'error' ? '⚠ ' : '✓ '}{toast.text}</span>
-          {toast.onUndo && <button className="toast-btn" onClick={() => { toast.onUndo!(); onClose(); }}>เลิกทำ</button>}
+          {toast.action && <button className="toast-btn" onClick={() => { toast.action!.run(); onClose(); }}>{toast.action.label}</button>}
           <button className="toast-x" onClick={onClose} aria-label="ปิดข้อความ"><IconX width={18} height={18} /></button>
         </div>
       )}

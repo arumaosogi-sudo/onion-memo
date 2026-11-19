@@ -7,7 +7,8 @@ import { Mascot } from './components/Bits';
 import { Calendar } from './components/Calendar';
 import { ConfirmModal, EmptyState, MemoryBox, Toast, type ToastData } from './components/Extras';
 import { AlertStrip, Composer, TaskCard } from './components/Home';
-import { IconBox, IconHome } from './components/Icons';
+import { IconBox, IconHome, IconSpark } from './components/Icons';
+import { AiSettings } from './components/AiSettings';
 import { TaskForm, type TaskDraft } from './components/TaskForm';
 
 type View = 'home' | 'memory';
@@ -30,6 +31,7 @@ export default function App() {
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [day, setDay] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiSettings, setAiSettings] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep "today" fresh (crossing midnight changes every badge).
@@ -39,7 +41,7 @@ export default function App() {
   useEffect(() => { if (!newId) return; const t = setTimeout(() => setNewId(null), 2200); return () => clearTimeout(t); }, [newId]);
 
   const go = (v: View) => { location.hash = v === 'memory' ? 'memory' : ''; setView(v); };
-  const showToast = useCallback((kind: ToastData['kind'], txt: string, onUndo?: () => void) => setToast({ id: Date.now(), kind, text: txt, onUndo }), []);
+  const showToast = useCallback((kind: ToastData['kind'], txt: string, action?: ToastData['action']) => setToast({ id: Date.now(), kind, text: txt, action }), []);
   const closeToast = useCallback(() => setToast(null), []);
 
   const open = tasks.filter((t) => t.doneAt === null);
@@ -70,7 +72,7 @@ export default function App() {
     setAiBusy(true);
     const p = await aiParse(text, new Date());
     setAiBusy(false);
-    if (p.fallbackReason) showToast('error', `${p.fallbackReason} · ใช้ตัวแยกในเครื่องแทน`);
+    if (p.fallbackReason) showToast('error', `${p.fallbackReason} · ใช้ตัวแยกในเครื่องแทน`, p.needsKey ? { label: 'ตั้งค่า AI', run: () => setAiSettings(true) } : undefined);
     setReview({ source: text.trim(), draft: { title: p.title, detail: p.detail, due: p.due }, matched: p.matched, alternative: p.alternative, by: p.source });
   };
   const saveReview = (d: TaskDraft) => {
@@ -82,7 +84,7 @@ export default function App() {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     setTimeout(() => {
       complete(t.id); setLeaving(null);
-      showToast('done', 'เสร็จแล้ว · ย้ายไป Memory Box', () => restore(t.id));
+      showToast('done', 'เสร็จแล้ว · ย้ายไป Memory Box', { label: 'เลิกทำ', run: () => restore(t.id) });
     }, reduce ? 0 : 220);
   };
 
@@ -95,6 +97,7 @@ export default function App() {
         <span className="logo"><Mascot size={40} />Smart Task</span>
         <button className={`nv ${view === 'home' ? 'on' : ''}`} aria-current={view === 'home' ? 'page' : undefined} onClick={() => go('home')}><IconHome />หน้าหลัก</button>
         <button className={`nv ${view === 'memory' ? 'on' : ''}`} aria-current={view === 'memory' ? 'page' : undefined} onClick={() => go('memory')}><IconBox />Memory Box</button>
+        <button className="nv nv-settings" onClick={() => setAiSettings(true)}><IconSpark />ตั้งค่า AI</button>
       </nav>
 
       <main id="main" className="main">
@@ -155,6 +158,7 @@ export default function App() {
           onSave={(d) => { update(editing.id, d); setEditing(null); showToast('success', 'บันทึกการแก้ไขแล้ว'); }}
           onCancel={() => setEditing(null)} onDone={() => markDone(editing)} />
       )}
+      {aiSettings && <AiSettings onClose={() => setAiSettings(false)} onSaved={(m) => showToast('success', m)} />}
       {confirmClear && (
         <ConfirmModal title="ล้างข้อมูลทั้งหมด?"
           body={`งานทั้งหมด ${tasks.length} รายการ (ค้างอยู่ ${open.length} · ใน Memory Box ${tasks.length - open.length}) จะหายจากเครื่องนี้ และกู้คืนไม่ได้`}
