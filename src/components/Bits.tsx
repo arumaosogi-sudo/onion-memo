@@ -3,16 +3,18 @@ import { IconClock, IconDash, IconExclaim, IconFlame, IconLeaf } from './Icons';
 
 export function Mascot({ size = 52, mood = 'happy' }: { size?: number; mood?: 'happy' | 'calm' }) {
   return (
-    <svg className="mascot" width={size} height={size * 0.9} viewBox="0 0 52 47" aria-hidden="true">
-      <rect x="22" y="0" width="8" height="12" rx="4" fill="var(--ok-ink)" transform="rotate(-15 26 6)" />
-      <ellipse cx="26" cy="27" rx="24" ry="19" fill="var(--mascot-body)" stroke="var(--mascot-line)" strokeWidth="1.5" />
-      <ellipse cx="18" cy="25" rx="3" ry="4" fill="var(--mascot-eye)" />
-      <ellipse cx="34" cy="25" rx="3" ry="4" fill="var(--mascot-eye)" />
-      <ellipse cx="11" cy="32" rx="4.5" ry="2.5" fill="#FFB3BA" />
-      <ellipse cx="41" cy="32" rx="4.5" ry="2.5" fill="#FFB3BA" />
+    // Same drawing as public/favicon.svg (the app logo).
+    <svg className="mascot" width={size} height={size * 60 / 58} viewBox="3 3 58 60" aria-hidden="true">
+      <path d="M31 17c-1-6 1-10 6-12 1 5-1 10-6 12z" fill="#3FB56C" />
+      <path d="M31 17c0-5-3-9-8-10 0 5 3 9 8 10z" fill="#2E9E5B" />
+      <ellipse cx="32" cy="38" rx="27" ry="23" fill="#FFFFFF" stroke="#CFC4EE" strokeWidth="2" />
+      <ellipse cx="23" cy="35" rx="3.2" ry="4.2" fill="#2D2A32" />
+      <ellipse cx="41" cy="35" rx="3.2" ry="4.2" fill="#2D2A32" />
+      <ellipse cx="15" cy="43" rx="5" ry="3" fill="#FFB3BA" />
+      <ellipse cx="49" cy="43" rx="5" ry="3" fill="#FFB3BA" />
       {mood === 'happy'
-        ? <path d="M22 32q4 4 8 0" stroke="var(--mascot-eye)" strokeWidth="2" fill="none" strokeLinecap="round" />
-        : <path d="M23 33h6" stroke="var(--mascot-eye)" strokeWidth="2" strokeLinecap="round" />}
+        ? <path d="M28 42q4 4 8 0" stroke="#2D2A32" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+        : <path d="M29 43h6" stroke="#2D2A32" strokeWidth="2.4" strokeLinecap="round" />}
     </svg>
   );
 }

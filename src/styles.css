@@ -68,7 +68,7 @@ button { cursor: pointer; background: none; border: 0; }
 @media (min-width: 768px) {
   .nav { position: sticky; top: 0; inset: auto; justify-content: flex-start; gap: 8px; border-top: 0; border-bottom: 1px solid var(--border-subtle); padding: 8px 24px; }
   .nav .logo { display: flex; align-items: center; gap: 8px; margin-right: auto; font: 400 22px/1.3 var(--font-display); color: var(--brand-primary); }
-  .nav .logo .mascot { display: none; }
+  .nav .logo .mascot { display: block; }
   .nv { flex-direction: row; gap: 8px; font-size: 15px; min-height: 44px; }
   .main { padding: 20px 24px 40px; }
   .hello-mascot { display: block; }
