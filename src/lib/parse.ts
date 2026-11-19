@@ -124,8 +124,19 @@ function findDate(text: string, today: Date): DateHit | null {
   return hits[0];
 }
 
-const SPLIT_MARKERS = /\n|,|，| - | – |:|\s(?=(?:สรุป|รายละเอียด|โดย|พร้อม|ทำ(?:บท|ข้อ)|อ่านบท|บทที่))/;
-const DANGLING = /\s*(?:ส่ง(?:ภายใน|ก่อน)?|ภายใน|ก่อน|ถึง|ใน|ที่|ของ)\s*$/;
+// Where the main task ends and its details begin. Thai has no spaces between words,
+// so connector words split even without surrounding whitespace.
+const SPLIT_MARKERS = new RegExp([
+  '\n', ',', '，', ' - ', ' – ', ':',
+  '\\s(?=(?:สรุป|รายละเอียด|พร้อม|ทำ(?:บท|ข้อ)|อ่านบท|บทที่))',
+  '(?:สำหรับ|เพื่อ(?!น)|ที่ทำ(?:กับ|ร่วม)|ทำร่วมกับ|ร่วมกับ|โดย(?:มี)?|(?:ด้วย)?(?:มี|มีหน้าที่|ทำหน้าที่)?หน้าที่|รับผิดชอบ|เกี่ยวกับ|ซึ่ง|เรื่อง)',
+].join('|'));
+const MIN_TITLE = 4;
+// Leading pronouns / politeness carry no meaning in a task title.
+const LEAD_FILLER = /^(?:(?:ผม|ฉัน|หนู|เรา|กู|ดิฉัน|เค้า|เขา|พวกเรา)\s*(?:จะ|ต้อง)?\s*)+/;
+const DANGLING = /\s*(?:(?:พร้อม)?(?:มี)?กำหนด(?:ส่ง)?|ส่ง(?:ภายใน|ก่อน)?|ภายใน|ก่อน|ถึง|ใน|ที่|ของ|และ|ด้วย|ครับ|ค่ะ|คะ|นะ|จ้า)\s*$/;
+const LEAD_DETAIL = /^(?:[\s,，:\-–]|ที่(?=ทำ)|ซึ่ง\s*)+/;
+const stripTail = (s: string) => { let p; do { p = s; s = s.replace(DANGLING, '').trim(); } while (s !== p); return s; };
 
 export function parseTask(input: string, now: Date = new Date()): ParseResult {
   const today = startOfDay(now);
@@ -137,17 +148,23 @@ export function parseTask(input: string, now: Date = new Date()): ParseResult {
     matched = text.slice(hit.start, hit.end).trim();
     rest = (text.slice(0, hit.start) + ' ' + text.slice(hit.end)).replace(/\s+/g, ' ').trim();
   }
-  rest = rest.replace(DANGLING, '').trim();
+  rest = stripTail(rest.replace(LEAD_FILLER, '').trim());
 
   let title = rest;
   let detail = '';
-  const idx = rest.search(SPLIT_MARKERS);
-  if (idx > 0) {
-    title = rest.slice(0, idx).trim();
-    detail = rest.slice(idx).replace(/^[\s,，:\-–]+/, '').trim();
+  // First marker that leaves a meaningful title in front of it.
+  const re = new RegExp(SPLIT_MARKERS.source, 'g');
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(rest))) {
+    if (rest.slice(0, mm.index).trim().length >= MIN_TITLE) {
+      title = rest.slice(0, mm.index).trim();
+      detail = rest.slice(mm.index).replace(LEAD_DETAIL, '').trim();
+      break;
+    }
+    if (mm[0].length === 0) re.lastIndex++;
   }
-  title = title.replace(DANGLING, '').trim();
-  detail = detail.replace(DANGLING, '').trim();
+  title = stripTail(title);
+  detail = stripTail(detail);
   if (!title && detail) { title = detail; detail = ''; }
 
   return {

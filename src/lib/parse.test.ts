@@ -72,3 +72,23 @@ describe('urgencyOf', () => {
     expect(formatThaiDate(fromISODate('2026-11-23'))).toBe('จันทร์ 23 พ.ย. 2569');
   });
 });
+
+describe('title / detail split', () => {
+  it('splits a long sentence into main task and details', () => {
+    const r = parseTask('ผมมีงานทำ database สำหรับโครงการใหญ่ด้วยมีหน้าที่กรองข้อมูล ส่งก่อนวันที่23เดือนนี้', NOW);
+    expect(r.title).toBe('มีงานทำ database');
+    expect(r.detail).toBe('สำหรับโครงการใหญ่ด้วยมีหน้าที่กรองข้อมูล');
+    expect(r.due).toBe('2026-11-23');
+  });
+
+  it('handles the project seminar example', () => {
+    const r = parseTask('ผมมี project seminar ที่ทำกับเพื่อนและผมทำหน้าที่สร้างหน้าบ้านและหลังบ้าน พร้อมมีกำหนดส่ง 30เดือนนี้', NOW);
+    expect(r.title).toBe('มี project seminar');
+    expect(r.detail).toBe('ทำกับเพื่อนและผมทำหน้าที่สร้างหน้าบ้านและหลังบ้าน');
+    expect(r.due).toBe('2026-11-30');
+  });
+
+  it('keeps short tasks whole', () => {
+    expect(parseTask('ซื้อของขวัญวันเกิดเพื่อน', NOW)).toMatchObject({ title: 'ซื้อของขวัญวันเกิดเพื่อน', detail: '' });
+  });
+});
