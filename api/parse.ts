@@ -9,7 +9,8 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ];
 const MAX_CHARS = 600;
-const MODELS = [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean) as string[];
+// Fast, current models first (checked against ListModels on 2026-11-19). Override with GEMINI_MODEL.
+const MODELS = [process.env.GEMINI_MODEL, 'gemini-3.5-flash-lite', 'gemini-3.5-flash'].filter(Boolean) as string[];
 const WEEKDAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
 // Best-effort per-instance rate limit (20 requests / minute / IP).
@@ -76,9 +77,9 @@ const RESPONSE_SCHEMA = {
   required: ['title', 'detail', 'due', 'matched', 'alternative'],
 };
 
-async function callGemini(key: string, model: string, text: string, today: string) {
+async function callGemini(key: string, model: string, text: string, today: string, lowThinking = true) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  const timer = setTimeout(() => ctrl.abort(), 20_000);
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
@@ -87,7 +88,10 @@ async function callGemini(key: string, model: string, text: string, today: strin
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt(today) }] },
         contents: [{ role: 'user', parts: [{ text: `ข้อความ: "${text}"` }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
+        generationConfig: {
+          temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA,
+          ...(lowThinking ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}),
+        },
       }),
     });
     return r;
@@ -126,9 +130,10 @@ export default async function handler(req: any, res: any) {
   let lastStatus = 0;
   for (const model of MODELS) {
     try {
-      const r = await callGemini(key, model, text, today);
+      let r = await callGemini(key, model, text, today);
+      if (r.status === 400) r = await callGemini(key, model, text, today, false); // model without thinkingLevel
       lastStatus = r.status;
-      if (r.status === 404) continue; // model name not available -> try next
+      if (r.status === 404 || r.status === 429 || r.status >= 500) continue; // try next model
       if (!r.ok) break;
       const data: any = await r.json();
       const raw = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '';
@@ -144,8 +149,8 @@ export default async function handler(req: any, res: any) {
         model,
       });
     } catch {
-      lastStatus = lastStatus || 502;
-      break;
+      lastStatus = 504; // timeout or bad JSON -> try next model
+      continue;
     }
   }
   return res.status(502).json({ error: 'ai_failed', upstream: lastStatus });
