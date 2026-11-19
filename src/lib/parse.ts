@@ -69,6 +69,26 @@ function findDate(text: string, today: Date): DateHit | null {
     const day = Number(m[1]); const month = Number(m[2]) - 1;
     push(m, validDate(resolveYear(m[3], month, day, today), month, day));
   }
+  // "30 เดือนนี้", "วันที่ 5 เดือนหน้า", "วันที่ 30" (no month: roll to next month if passed), "สิ้นเดือน"
+  const lastDay = (y: number, mo: number) => new Date(y, mo + 1, 0).getDate();
+  const reMonthRel = /(?:วันที่\s*)?(\d{1,2})\s*(?:ของ)?\s*เดือน(นี้|หน้า)/g;
+  while ((m = reMonthRel.exec(text))) {
+    const mo = today.getMonth() + (m[2] === 'หน้า' ? 1 : 0);
+    const y = today.getFullYear();
+    push(m, new Date(y, mo, Math.min(Number(m[1]), lastDay(y, mo))));
+  }
+  const reDayOnly = /วันที่\s*(\d{1,2})(?!\s*(?:\/|\d|เดือน|ม\.|ก\.|มี\.|เม\.|พ\.|มิ\.|ส\.|ต\.|ธ\.|มกรา|กุมภา|มีนา|เมษา|พฤษภา|มิถุนา|กรกฎา|สิงหา|กันยา|ตุลา|พฤศจิกา|ธันวา))/g;
+  while ((m = reDayOnly.exec(text))) {
+    const day = Number(m[1]);
+    let mo = today.getMonth(); let y = today.getFullYear();
+    if (day < today.getDate()) { mo++; if (mo > 11) { mo = 0; y++; } }
+    if (day >= 1 && day <= 31) push(m, new Date(y, mo, Math.min(day, lastDay(y, mo))));
+  }
+  const reEnd = /สิ้นเดือน(นี้|หน้า)?/g;
+  while ((m = reEnd.exec(text))) {
+    const mo = today.getMonth() + (m[1] === 'หน้า' ? 1 : 0);
+    push(m, new Date(today.getFullYear(), mo, lastDay(today.getFullYear(), mo)));
+  }
   // Relative words
   const rel: [RegExp, number][] = [[/มะรืน(?:นี้)?/g, 2], [/พรุ่งนี้/g, 1], [/วันนี้/g, 0]];
   for (const [re, n] of rel) while ((m = re.exec(text))) push(m, addDays(today, n));

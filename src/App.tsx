@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { URGENCY_ORDER, formatThaiDate, fromISODate, greeting, urgencyOf, type Urgency } from './lib/date';
 import { parseTask } from './lib/parse';
+import { aiParse } from './lib/ai';
 import { useTasks, type Task } from './lib/store';
 import { Mascot } from './components/Bits';
 import { Calendar } from './components/Calendar';
@@ -10,7 +11,7 @@ import { IconBox, IconHome } from './components/Icons';
 import { TaskForm, type TaskDraft } from './components/TaskForm';
 
 type View = 'home' | 'memory';
-interface Review { source: string; draft: TaskDraft; matched: string | null; alternative: string | null }
+interface Review { source: string; draft: TaskDraft; matched: string | null; alternative: string | null; by: 'ai' | 'local' }
 
 const viewFromHash = (): View => (location.hash === '#memory' ? 'memory' : 'home');
 const isWide = () => typeof matchMedia !== 'undefined' && matchMedia('(min-width: 768px)').matches;
@@ -28,6 +29,7 @@ export default function App() {
   const [newId, setNewId] = useState<string | null>(null);
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [day, setDay] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep "today" fresh (crossing midnight changes every badge).
@@ -59,13 +61,17 @@ export default function App() {
     });
   }, [open, urgentOnly, day, now, newId]);
 
-  const startReview = (split: boolean) => {
-    const p = parseTask(text, now);
-    setReview({
-      source: text.trim(),
-      draft: split ? { title: p.title, detail: p.detail, due: p.due } : { title: text.trim(), detail: '', due: p.due },
-      matched: p.matched, alternative: p.alternative,
-    });
+  const startReview = async (split: boolean) => {
+    if (!split) {
+      const p = parseTask(text, now);
+      setReview({ source: text.trim(), draft: { title: text.trim(), detail: '', due: p.due }, matched: p.matched, alternative: p.alternative, by: 'local' });
+      return;
+    }
+    setAiBusy(true);
+    const p = await aiParse(text, new Date());
+    setAiBusy(false);
+    if (p.fallbackReason) showToast('error', `${p.fallbackReason} · ใช้ตัวแยกในเครื่องแทน`);
+    setReview({ source: text.trim(), draft: { title: p.title, detail: p.detail, due: p.due }, matched: p.matched, alternative: p.alternative, by: p.source });
   };
   const saveReview = (d: TaskDraft) => {
     const t = add(d); setReview(null); setText(''); setNewId(t.id); setDay(null); setUrgentOnly(false);
@@ -112,7 +118,7 @@ export default function App() {
                 <Calendar tasks={tasks} today={now} selected={day} onSelect={setDay} defaultView={isWide() ? 'month' : 'week'} />
               </div>
               <div className="a-composer">
-                <Composer value={text} onChange={setText} inputRef={composerRef} onSplit={() => startReview(true)} onAdd={() => startReview(false)} />
+                <Composer value={text} onChange={setText} inputRef={composerRef} busy={aiBusy} onSplit={() => startReview(true)} onAdd={() => startReview(false)} />
               </div>
               <section className="a-list" aria-labelledby="list-h">
                 <div className="list-h">
@@ -140,7 +146,7 @@ export default function App() {
       <Toast toast={toast} onClose={closeToast} />
 
       {review && (
-        <TaskForm mode="review" initial={review.draft} source={review.source} matched={review.matched} alternative={review.alternative}
+        <TaskForm mode="review" initial={review.draft} source={review.source} matched={review.matched} alternative={review.alternative} by={review.by}
           onSave={saveReview} onCancel={() => setReview(null)}
           onBackToText={() => { setReview(null); setTimeout(() => composerRef.current?.focus(), 0); }} />
       )}

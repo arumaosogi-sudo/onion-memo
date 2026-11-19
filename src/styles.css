@@ -235,3 +235,9 @@ button { cursor: pointer; background: none; border: 0; }
   .cal { padding-left: 0; padding-right: 0; }
   .grid7 { gap: 0; }
 }
+
+/* AI source tag + busy spinner */
+.by { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.by-ai { color: var(--brand-primary); }
+.spin { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

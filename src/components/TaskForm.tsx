@@ -10,8 +10,9 @@ export interface TaskDraft { title: string; detail: string; due: string | null }
  * One form for both the Review Board (after typing) and Detail/Edit.
  * mode "review": shows the original sentence, where the date was read from, and an alternative date.
  */
-export function TaskForm({ mode, initial, source, matched, alternative, onSave, onCancel, onBackToText, onDone }: {
+export function TaskForm({ mode, initial, source, matched, alternative, by, onSave, onCancel, onBackToText, onDone }: {
   mode: 'review' | 'edit';
+  by?: 'ai' | 'local';
   initial: TaskDraft;
   source?: string;
   matched?: string | null;
@@ -48,7 +49,12 @@ export function TaskForm({ mode, initial, source, matched, alternative, onSave, 
           </div>
         </div>
 
-        {mode === 'review' && source && <p className="quote">ข้อความที่พิมพ์: “{source}”</p>}
+        {mode === 'review' && source && (
+          <p className="quote">
+            ข้อความที่พิมพ์: “{source}”
+            {by && <span className={`by by-${by}`}>{by === 'ai' ? '✦ แยกโดย Gemini' : 'แยกด้วยตัวแยกในเครื่อง'}</span>}
+          </p>
+        )}
 
         <div className="field">
           <label htmlFor={ids.t}>หัวข้องาน</label>

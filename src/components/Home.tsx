@@ -25,8 +25,8 @@ export function AlertStrip({ counts, active, onToggle, onReschedule, showResched
   );
 }
 
-export function Composer({ value, onChange, onSplit, onAdd, inputRef }: {
-  value: string; onChange: (v: string) => void; onSplit: () => void; onAdd: () => void;
+export function Composer({ value, onChange, onSplit, onAdd, inputRef, busy }: {
+  value: string; onChange: (v: string) => void; onSplit: () => void; onAdd: () => void; busy: boolean;
   inputRef: React.RefObject<HTMLTextAreaElement>;
 }) {
   const [focus, setFocus] = useState(false);
@@ -41,11 +41,13 @@ export function Composer({ value, onChange, onSplit, onAdd, inputRef }: {
       <label htmlFor="composer" className="sr-only">พิมพ์งานใหม่</label>
       <textarea id="composer" ref={inputRef} rows={1} value={value} onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !empty) onSplit(); }}
-        placeholder='พิมพ์งาน เช่น "ส่งรายงานวิทย์ สรุปบทที่ 3-4 วันจันทร์หน้า"' />
+        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !empty && !busy) onSplit(); }}
+        placeholder='พิมพ์งาน เช่น "project seminar ทำกับเพื่อน ผมทำหน้าบ้านกับหลังบ้าน ส่ง 30 เดือนนี้"' />
       <div className="row">
-        <button className="btn s sm grow" onClick={onSplit} disabled={empty}><IconSpark width={16} height={16} />ให้ AI ช่วยแยก</button>
-        <button className="btn p sm" onClick={onAdd} disabled={empty}>+ เพิ่ม</button>
+        <button className="btn s sm grow" onClick={onSplit} disabled={empty || busy} aria-busy={busy}>
+          <IconSpark width={16} height={16} className={busy ? 'spin' : undefined} />{busy ? 'AI กำลังอ่าน…' : 'ให้ AI ช่วยแยก'}
+        </button>
+        <button className="btn p sm" onClick={onAdd} disabled={empty || busy}>+ เพิ่ม</button>
       </div>
     </section>
   );

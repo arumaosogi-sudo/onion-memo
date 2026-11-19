@@ -39,6 +39,14 @@ describe('parseTask', () => {
     expect(parseTask('สมัครค่าย 3 ม.ค.', NOW).due).toBe('2027-01-03');
   });
 
+  it('reads day-of-month phrases', () => {
+    expect(parseTask('มีกำหนดส่ง 30เดือนนี้', NOW).due).toBe('2026-11-30');
+    expect(parseTask('ส่งงาน 5 เดือนหน้า', NOW).due).toBe('2026-12-05');
+    expect(parseTask('สอบวันที่ 20', NOW).due).toBe('2026-11-20');
+    expect(parseTask('จ่ายค่าหอวันที่ 3', NOW).due).toBe('2026-12-03');
+    expect(parseTask('ส่งเล่มสิ้นเดือน', NOW).due).toBe('2026-11-30');
+  });
+
   it('does not guess when there is no date', () => {
     const r = parseTask('จัดโต๊ะทำงานให้เรียบร้อย', NOW);
     expect(r.due).toBeNull();
