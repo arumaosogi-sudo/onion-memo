@@ -94,7 +94,7 @@ export default function App() {
     <div className="app">
       <a href="#main" className="skip">ข้ามไปเนื้อหาหลัก</a>
       <nav className="nav" aria-label="เมนูหลัก">
-        <span className="logo"><Mascot size={36} />Smart Task</span>
+        <span className="logo"><Mascot size={36} />Onion Memo</span>
         <button className={`nv ${view === 'home' ? 'on' : ''}`} aria-current={view === 'home' ? 'page' : undefined} onClick={() => go('home')}><IconHome />หน้าหลัก</button>
         <button className={`nv ${view === 'memory' ? 'on' : ''}`} aria-current={view === 'memory' ? 'page' : undefined} onClick={() => go('memory')}><IconBox />Memory Box</button>
         <button className="nv nv-settings" onClick={() => setAiSettings(true)}><IconSpark />ตั้งค่า AI</button>

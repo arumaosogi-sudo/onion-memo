@@ -1,6 +1,6 @@
 {
-  "name": "Smart Task Tracker",
-  "short_name": "Smart Task",
+  "name": "Onion Memo",
+  "short_name": "Onion Memo",
   "description": "จดและติดตามงานที่ต้องส่ง พร้อมปฏิทินและนับถอยหลังวันส่ง",
   "lang": "th",
   "start_url": "./",

@@ -1,4 +1,4 @@
-# Smart Task Tracker & Calendar
+# Onion Memo
 
 เว็บจริง: https://arumaosogi-sudo.github.io/tacker-app/ (GitHub Pages, deploy อัตโนมัติทุกครั้งที่ push เข้า main)
 
