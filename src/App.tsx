@@ -3,11 +3,14 @@ import { URGENCY_ORDER, formatThaiDate, fromISODate, greeting, urgencyOf, type U
 import { parseTask } from './lib/parse';
 import { aiParse } from './lib/ai';
 import { useTasks, type Task } from './lib/store';
+import { useAccount } from './lib/account';
+import { getGeminiKey, setGeminiKey } from './lib/gemini';
+import { AccountPanel } from './components/AccountPanel';
 import { Mascot } from './components/Bits';
 import { Calendar } from './components/Calendar';
 import { ConfirmModal, EmptyState, MemoryBox, Toast, type ToastData } from './components/Extras';
 import { AlertStrip, Composer, TaskCard } from './components/Home';
-import { IconBox, IconHome, IconSpark } from './components/Icons';
+import { IconBox, IconHome, IconStar, IconUser } from './components/Icons';
 import { AiSettings } from './components/AiSettings';
 import { TaskForm, type TaskDraft } from './components/TaskForm';
 
@@ -18,21 +21,41 @@ const viewFromHash = (): View => (location.hash === '#memory' ? 'memory' : 'home
 const isWide = () => typeof matchMedia !== 'undefined' && matchMedia('(min-width: 768px)').matches;
 
 export default function App() {
-  const { tasks, storageOk, add, update, complete, restore, clearAll } = useTasks();
+  const account = useAccount();
+  const uid = account.user?.uid ?? null;
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const showToast = useCallback((kind: ToastData['kind'], txt: string, action?: ToastData['action']) => setToast({ id: Date.now(), kind, text: txt, action }), []);
+  const { tasks, loading, storageOk, add, update, complete, restore, toggleStar, clearAll } = useTasks(
+    { cloud: account.cloud, uid },
+    (e) => e.kind === 'migrated'
+      ? showToast('success', `ย้ายงาน ${e.count} รายการจากเครื่องนี้เข้าบัญชีแล้ว`)
+      : showToast('error', 'ซิงก์ไม่สำเร็จ จะลองใหม่เมื่อกลับมาออนไลน์'),
+  );
   const [now, setNow] = useState(() => new Date());
   const [view, setView] = useState<View>(viewFromHash);
   const [text, setText] = useState('');
   const [review, setReview] = useState<Review | null>(null);
   const [editing, setEditing] = useState<Task | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [toast, setToast] = useState<ToastData | null>(null);
   const [leaving, setLeaving] = useState<string | null>(null);
   const [newId, setNewId] = useState<string | null>(null);
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [day, setDay] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiSettings, setAiSettings] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [starOnly, setStarOnly] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  // Gemini key follows the account: pull it on sign-in if this device has none, or push this device's key up.
+  useEffect(() => {
+    if (!account.cloud || !uid) return;
+    const cloud = account.cloud;
+    cloud.getCloudGeminiKey(uid).then((k) => {
+      if (k && !getGeminiKey()) setGeminiKey(k);
+      else if (!k && getGeminiKey()) void cloud.setCloudGeminiKey(uid, getGeminiKey());
+    }).catch(() => {});
+  }, [account.cloud, uid]);
 
   // Keep "today" fresh (crossing midnight changes every badge).
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(t); }, []);
@@ -41,7 +64,6 @@ export default function App() {
   useEffect(() => { if (!newId) return; const t = setTimeout(() => setNewId(null), 2200); return () => clearTimeout(t); }, [newId]);
 
   const go = (v: View) => { location.hash = v === 'memory' ? 'memory' : ''; setView(v); };
-  const showToast = useCallback((kind: ToastData['kind'], txt: string, action?: ToastData['action']) => setToast({ id: Date.now(), kind, text: txt, action }), []);
   const closeToast = useCallback(() => setToast(null), []);
 
   const open = tasks.filter((t) => t.doneAt === null);
@@ -55,13 +77,15 @@ export default function App() {
     let l = open;
     if (urgentOnly) l = l.filter((t) => ['overdue', 'today', 'urgent'].includes(urgencyOf(t.due, now).level));
     if (day) l = l.filter((t) => t.due === day);
+    if (starOnly) l = l.filter((t) => t.starred);
     return [...l].sort((a, b) => {
       // A just-added task stays on top for a moment so the user sees it, then sorts by urgency.
       if (a.id === newId) return -1; if (b.id === newId) return 1;
+      if (!!a.starred !== !!b.starred) return a.starred ? -1 : 1; // starred (important) first
       const d = URGENCY_ORDER[urgencyOf(a.due, now).level] - URGENCY_ORDER[urgencyOf(b.due, now).level];
       return d || (a.due ?? '9').localeCompare(b.due ?? '9') || a.createdAt - b.createdAt;
     });
-  }, [open, urgentOnly, day, now, newId]);
+  }, [open, urgentOnly, day, starOnly, now, newId]);
 
   const startReview = async (split: boolean) => {
     if (!split) {
@@ -97,7 +121,10 @@ export default function App() {
         <span className="logo"><Mascot size={36} />Onion Memo</span>
         <button className={`nv ${view === 'home' ? 'on' : ''}`} aria-current={view === 'home' ? 'page' : undefined} onClick={() => go('home')}><IconHome />หน้าหลัก</button>
         <button className={`nv ${view === 'memory' ? 'on' : ''}`} aria-current={view === 'memory' ? 'page' : undefined} onClick={() => go('memory')}><IconBox />Memory Box</button>
-        <button className="nv nv-settings" onClick={() => setAiSettings(true)}><IconSpark />ตั้งค่า AI</button>
+        <button className="nv nv-account" onClick={() => setAccountOpen(true)} aria-label={account.user ? `บัญชี ${account.user.name}` : 'บัญชีและการตั้งค่า'}>
+          {account.user?.photo ? <img className="avatar sm" src={account.user.photo} alt="" referrerPolicy="no-referrer" /> : <IconUser />}
+          {account.user ? 'บัญชี' : 'เข้าสู่ระบบ'}
+        </button>
       </nav>
 
       <main id="main" className="main">
@@ -125,18 +152,25 @@ export default function App() {
               </div>
               <section className="a-list" aria-labelledby="list-h">
                 <div className="list-h">
-                  <h2 id="list-h" className="h-sec">{day ? `งานวัน${formatThaiDate(fromISODate(day))}` : urgentOnly ? 'งานด่วน' : 'งานของฉัน'}</h2>
-                  {(day || urgentOnly) ? <button className="link" onClick={() => { setDay(null); setUrgentOnly(false); }}>ดูทั้งหมด</button> : <span className="t-xs">{open.length} งาน</span>}
+                  <h2 id="list-h" className="h-sec">{day ? `งานวัน${formatThaiDate(fromISODate(day))}` : starOnly ? 'งานสำคัญ' : urgentOnly ? 'งานด่วน' : 'งานของฉัน'}</h2>
+                  <span className="row">
+                    <button className={`chip-btn ${starOnly ? 'on' : ''}`} aria-pressed={starOnly} onClick={() => setStarOnly((v) => !v)}>
+                      <IconStar filled={starOnly} width={16} height={16} />สำคัญ {open.filter((t) => t.starred).length || ''}
+                    </button>
+                    {(day || urgentOnly || starOnly) ? <button className="link" onClick={() => { setDay(null); setUrgentOnly(false); setStarOnly(false); }}>ดูทั้งหมด</button> : <span className="t-xs">{open.length} งาน</span>}
+                  </span>
                 </div>
-                {!hasAny ? (
+                {loading ? (
+                  <p className="t-sm" role="status">กำลังโหลดงานจากบัญชี…</p>
+                ) : !hasAny ? (
                   <EmptyState title="ยังไม่มีงานเลย" text="พิมพ์งานแรกในช่องด้านบน แล้วกด “ให้ AI ช่วยแยก”" />
                 ) : list.length === 0 ? (
-                  <EmptyState title={urgentOnly ? 'ไม่มีงานด่วน' : day ? 'วันนี้ว่าง ไม่มีงานส่ง' : 'เคลียร์งานหมดแล้ว'} text={urgentOnly || day ? 'แตะ “ดูทั้งหมด” เพื่อกลับไปดูทุกงาน' : 'งานที่เสร็จอยู่ใน Memory Box'} />
+                  <EmptyState title={starOnly ? 'ยังไม่มีงานที่ติดดาว' : urgentOnly ? 'ไม่มีงานด่วน' : day ? 'วันนี้ว่าง ไม่มีงานส่ง' : 'เคลียร์งานหมดแล้ว'} text={starOnly ? 'แตะดาวที่การ์ดงานเพื่อทำเครื่องหมายว่าสำคัญ' : urgentOnly || day ? 'แตะ “ดูทั้งหมด” เพื่อกลับไปดูทุกงาน' : 'งานที่เสร็จอยู่ใน Memory Box'} />
                 ) : (
                   <div className="list">
                     {list.map((t) => (
                       <TaskCard key={t.id} task={t} today={now} leaving={leaving === t.id} isNew={newId === t.id}
-                        onOpen={() => setEditing(t)} onDone={() => markDone(t)} />
+                        onOpen={() => setEditing(t)} onDone={() => markDone(t)} onStar={() => toggleStar(t.id)} />
                     ))}
                   </div>
                 )}
@@ -158,10 +192,20 @@ export default function App() {
           onSave={(d) => { update(editing.id, d); setEditing(null); showToast('success', 'บันทึกการแก้ไขแล้ว'); }}
           onCancel={() => setEditing(null)} onDone={() => markDone(editing)} />
       )}
-      {aiSettings && <AiSettings onClose={() => setAiSettings(false)} onSaved={(m) => showToast('success', m)} />}
+      {aiSettings && <AiSettings onClose={() => setAiSettings(false)} onSaved={(m) => {
+        showToast('success', m);
+        if (account.cloud && uid) account.cloud.setCloudGeminiKey(uid, getGeminiKey()).catch(() => {});
+      }} />}
+      {accountOpen && (
+        <AccountPanel enabled={account.enabled} user={account.user} taskCount={tasks.length}
+          onSignIn={account.signIn}
+          onSignOut={async () => { await account.signOut(); setAccountOpen(false); showToast('success', 'ออกจากระบบแล้ว'); }}
+          onOpenAi={() => { setAccountOpen(false); setAiSettings(true); }}
+          onClose={() => setAccountOpen(false)} />
+      )}
       {confirmClear && (
         <ConfirmModal title="ล้างข้อมูลทั้งหมด?"
-          body={`งานทั้งหมด ${tasks.length} รายการ (ค้างอยู่ ${open.length} · ใน Memory Box ${tasks.length - open.length}) จะหายจากเครื่องนี้ และกู้คืนไม่ได้`}
+          body={`งานทั้งหมด ${tasks.length} รายการ (ค้างอยู่ ${open.length} · ใน Memory Box ${tasks.length - open.length}) จะหาย${uid ? 'จากบัญชีนี้ทุกเครื่อง' : 'จากเครื่องนี้'} และกู้คืนไม่ได้`}
           confirmLabel={`ล้าง ${tasks.length} รายการ`}
           onConfirm={() => { clearAll(); setConfirmClear(false); go('home'); showToast('success', 'ล้างข้อมูลแล้ว'); }}
           onCancel={() => setConfirmClear(false)} />

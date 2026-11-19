@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { formatThaiDate, fromISODate, urgencyOf, type Urgency } from '../lib/date';
 import type { Task } from '../lib/store';
 import { StatusBadge } from './Bits';
-import { IconExclaim, IconFlame, IconSpark } from './Icons';
+import { IconExclaim, IconFlame, IconSpark, IconStar } from './Icons';
 
 export function AlertStrip({ counts, active, onToggle, onReschedule, showReschedule }: {
   counts: Record<Urgency, number>; active: boolean; onToggle: () => void; onReschedule: () => void; showReschedule: boolean;
@@ -53,17 +53,21 @@ export function Composer({ value, onChange, onSplit, onAdd, inputRef, busy }: {
   );
 }
 
-export function TaskCard({ task, today, onOpen, onDone, leaving, isNew }: {
-  task: Task; today: Date; onOpen: () => void; onDone: () => void; leaving: boolean; isNew: boolean;
+export function TaskCard({ task, today, onOpen, onDone, onStar, leaving, isNew }: {
+  task: Task; today: Date; onOpen: () => void; onDone: () => void; onStar: () => void; leaving: boolean; isNew: boolean;
 }) {
   const u = urgencyOf(task.due, today);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { if (isNew) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [isNew]);
   const meta = [task.detail, task.due ? formatThaiDate(fromISODate(task.due)) : 'ยังไม่ได้ตั้งวันส่ง'].filter(Boolean).join(' · ');
   return (
-    <article ref={ref} className={`surface card lv-${u.level} ${leaving ? 'leaving' : ''} ${isNew ? 'is-new' : ''}`}>
+    <article ref={ref} className={`surface card lv-${u.level} ${leaving ? 'leaving' : ''} ${isNew ? 'is-new' : ''} ${task.starred ? 'starred' : ''}`}>
       <div className="top">
-        <h3 className="title">{task.title}</h3>
+        <button className={`star ${task.starred ? 'on' : ''}`} onClick={onStar} aria-pressed={!!task.starred}
+          aria-label={task.starred ? `เลิกติดดาว ${task.title}` : `ติดดาวว่าสำคัญ ${task.title}`} title={task.starred ? 'งานสำคัญ' : 'ติดดาวว่าสำคัญ'}>
+          <IconStar filled={!!task.starred} width={22} height={22} />
+        </button>
+        <h3 className="title grow">{task.title}</h3>
         <StatusBadge level={u.level} label={u.label} />
       </div>
       <p className="t-sm meta">{meta}</p>

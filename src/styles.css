@@ -244,3 +244,27 @@ button { cursor: pointer; background: none; border: 0; }
 
 a { color: var(--brand-primary); text-underline-offset: 3px; }
 @media (max-width: 400px) { .nv { min-width: 0; flex: 1; padding: 4px 6px; } }
+
+/* ---------- star / important ---------- */
+.star { width: 44px; height: 44px; margin: -10px -6px -10px -10px; display: grid; place-items: center; border-radius: 12px; color: var(--text-secondary); flex-shrink: 0; transition: transform .15s ease, color .15s ease; }
+.star:hover { color: #E0A100; background: var(--brand-soft); }
+.star.on { color: #E0A100; }
+.star:active { transform: scale(.9); }
+@media (prefers-color-scheme: dark) { .star.on, .star:hover { color: #FFC83D; } }
+.card.starred { box-shadow: var(--shadow-card), inset 3px 0 0 #E0A100; }
+.card.starred.lv-overdue { box-shadow: var(--shadow-card); }
+.chip-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 4px 12px; border-radius: var(--r-pill);
+  border: 1.5px solid var(--border-subtle); background: var(--surface-card); font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.chip-btn.on { border-color: #E0A100; color: var(--text-primary); background: var(--brand-soft); }
+.chip-btn.on svg { color: #E0A100; }
+
+/* ---------- account ---------- */
+.avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--brand-line); flex-shrink: 0; }
+.avatar.sm { width: 22px; height: 22px; border-width: 1px; }
+.btn.google { background: #fff; color: #1f1f1f; border: 1.5px solid #DADCE0; font: 500 16px/1.3 var(--font-body); border-radius: var(--r-pill); gap: 10px; }
+.btn.google:hover:not(:disabled) { background: #F8F9FA; }
+.setting-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 14px; border: 1px solid var(--border-subtle);
+  border-radius: var(--r-btn); background: var(--surface-sunk); text-align: left; }
+.setting-row:hover { border-color: var(--brand-primary); }
+.sync-ok { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: var(--r-btn); background: var(--ok-bg); border: 1px solid var(--ok-ink); }
+.sync-ok .t-xs { color: var(--text-primary); }
